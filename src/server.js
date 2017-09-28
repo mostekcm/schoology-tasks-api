@@ -43,7 +43,8 @@ server.register([jwt, corsPlugin, auth, routes], (err) => {
         handler: (request, reply) => {
           // This is the user object
           // TODO: Is this leaking the token?
-          reply(request.auth.credentials);
+          // reply(request.auth.credentials);
+          reply({});
         }
       }
     ]);

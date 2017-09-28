@@ -46,7 +46,6 @@ export default () => ({
 
         const oauthHeader = 'Oauth ' + _(headers).keys().map(key => `${key}=${headers[key]}`).join(', ');
 
-        console.log('oauth header: ' + oauthHeader);
         try {
           request
             .get('https://api.schoology.com/v1/users/me')
@@ -55,7 +54,6 @@ export default () => ({
             .end((err, result) => {
               if (err) {
                 logger.error(`Could not get tasks because: ${err.message}, ${result.body}`);
-                console.log('result: ', result.body, result.text);
                 return reply(err);
               }
               return reply(result.body);

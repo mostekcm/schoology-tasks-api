@@ -1,6 +1,8 @@
 import jwks from 'jwks-rsa';
 import jwt from 'jsonwebtoken';
 import Boom from 'boom';
+import _ from 'lodash';
+import crypto from 'crypto';
 import logger from './logger';
 import config from './config';
 
@@ -53,6 +55,26 @@ const verifyFunc = (decoded, req, callback) => {
             decoded.payload.scope = decoded.payload.scope.split(' '); // eslint-disable-line no-param-reassign
           }
 
+          /* create the usersMap */
+          decoded.payload.usersMap = {};
+          const claimKey = 'http://schoology-tasks-api/key/';
+          const claimUid = 'http://schoology-tasks-api/uid/';
+          const claims = _(decoded.payload).keys().filter(claim => claim.startsWith(claimKey)).value();
+          claims.forEach((claim) => {
+            const userName = claim.substr(claimKey.length);
+            const user = {
+              uid: decoded.payload[claimUid + userName],
+              key: decoded.payload[claimKey + userName]
+            };
+
+            /* decrypt the key */
+            const decipher = crypto.createDecipher('aes192', config('USER_KEY_SECRET'));
+            let decrypted = decipher.update(user.key, 'hex', 'utf8');
+            decrypted += decipher.final('utf8');
+            user.key = decrypted;
+
+            decoded.payload.usersMap[userName] = user;
+          });
           return callback(null, true, decoded.payload);
         });
       });

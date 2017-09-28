@@ -17,7 +17,6 @@ export default () => ({
   },
   handler: (req, reply) => {
     logger.info('Requesting a new access token: ', req.payload);
-    console.log('Requesting a new access token: ', req.payload, req.payload.request_token);
 
     const tokenService = new TokenService();
     return tokenService.getRefreshTokenSecret(req.payload.request_token)

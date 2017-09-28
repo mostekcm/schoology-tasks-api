@@ -45,7 +45,6 @@ export default () => ({
         .join(', ') +
       `, oauth_signature=${config('SCHOOLOGY_SECRET')}%26`;
 
-    console.log('oauth header: ' + oauthHeader);
     try {
       request
         .get('https://api.schoology.com/v1/' + req.query.url)
@@ -55,7 +54,6 @@ export default () => ({
         .end((err, result) => {
           if (err) {
             logger.error(`Could not get ${req.query.url} because: ${err.message}, ${result.body}`);
-            console.log('result: ', result.body, result.text);
             return reply({ message: err.message, body: result.body, text: result.text });
           }
           return reply(result.body);

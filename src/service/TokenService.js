@@ -39,13 +39,9 @@ export default class TaskService {
             .findOne({
               oauth_token: token
             });
-          console.log('tokens: ', tokens);
           return tokens;
         }))
-      .then((obj) => {
-        console.log('found RT info: ', obj, token);
-        return obj.oauth_token_secret;
-      });
+      .then(obj => obj.oauth_token_secret);
   }
 
   addRefreshToken(token) {
