@@ -17,7 +17,7 @@ export default class TaskService {
 
     const me = this;
 
-    return mongo.MongoClient.connect(config('MONGO_URI'))
+    return mongo.MongoClient.connect(config('MONGODB_URI'))
       .then((db) => {
         me.db = db;
         return db;
