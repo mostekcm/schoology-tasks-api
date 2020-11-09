@@ -93,16 +93,33 @@ const getGrades = (sections, assignments, user) => {
     }));
 };
 
-const fetchSubmissions = (assignment, user, completedAssignments, incompleteAssignments) =>
-  getUrl(`https://api.schoology.com/v1/section/${assignment.section_id}/submissions/${assignment.grade_item_id}/${user.uid}`, user)
-    .then((submissionResult) => {
-      if (submissionResult.body.revision.length > 0) {
-        return completedAssignments.push(assignment);
-      }
+// const fetchSubmissions = (assignment, user, completedAssignments, incompleteAssignments) =>
+//   getUrl(`https://api.schoology.com/v1/section/${assignment.section_id}/submissions/${assignment.grade_item_id}/${user.uid}`, user)
+//     .then((submissionResult) => {
+//       if (submissionResult.body.revision.length > 0) {
+//         return completedAssignments.push(assignment);
+//       }
+//
+//       return incompleteAssignments.push(assignment);
+//     })
+//     .catch(submissionErr => logger.error(`submission error: ${submissionErr.message}`));
 
-      return incompleteAssignments.push(assignment);
-    })
-    .catch(submissionErr => logger.error(`submission error: ${submissionErr.message}`));
+const calcGrade = (percentage) => {
+  if (percentage < 0.01) return 'I';
+  if (percentage < 0.6) return 'F';
+  if (percentage < 0.63) return 'D-';
+  if (percentage < 0.67) return 'D';
+  if (percentage < 0.7) return 'D+';
+  if (percentage < 0.73) return 'C-';
+  if (percentage < 0.77) return 'C';
+  if (percentage < 0.8) return 'C+';
+  if (percentage < 0.83) return 'B-';
+  if (percentage < 0.87) return 'B';
+  if (percentage < 0.9) return 'B+';
+  if (percentage < 0.93) return 'A-';
+  if (percentage < 0.97) return 'A';
+  return 'A+';
+};
 
 export default () => ({
   method: 'GET',
@@ -124,8 +141,8 @@ export default () => ({
     }
   },
   handler: (req, reply) => {
-    const startDate = req.query.startDate ? req.query.startDate : moment('2017-09-01T00:00:00Z');
-    logger.info('Requesting tasks report for ', startDate);
+    // const startDate = req.query.startDate ? req.query.startDate : moment('2018-12-04T00:00:00Z').format('X');
+    logger.info('Requesting tasks report for ', req.query.user);
 
     const requestUser = req.auth.credentials.usersMap[req.query.user];
 
@@ -149,29 +166,92 @@ export default () => ({
                 .then(assignments => getGrades(sections, assignments, user))
                 .then((gradeResults) => {
                   logger.debug('all grade promises are done');
-                  const ungradedAssignments = _.filter(gradeResults.assignments, assignment => !gradeResults.grades[assignment.id]);
+                  // const ungradedAssignments = _.filter(gradeResults.assignments, assignment => !gradeResults.grades[assignment.id]);
                   const gradedAssignments = _.filter(gradeResults.assignments, assignment => !!gradeResults.grades[assignment.id]);
 
-                  const completedAssignments = [];
-                  const incompleteAssignments = [];
-                  const submissionPromises = [];
+                  // const completedAssignments = [];
+                  // const incompleteAssignments = [];
+                  // const submissionPromises = [];
 
-                  ungradedAssignments.forEach((assignment) => {
-                    logger.debug('ungraded: ', assignment);
-                    submissionPromises.push(promiseThrottle.add(fetchSubmissions.bind(this, assignment, user, completedAssignments, incompleteAssignments)));
+                  // ungradedAssignments.forEach((assignment) => {
+                  //   logger.debug('ungraded: ', assignment);
+                  //   submissionPromises.push(promiseThrottle.add(fetchSubmissions.bind(this, assignment, user, completedAssignments, incompleteAssignments)));
+                  // });
+
+                  /**
+                   * polish the return values
+                   */
+                  const sectionIndex = {};
+                  gradeResults.sections.forEach((section) => {
+                    const sectionRegex = /Section \d+ - (T\d) .*/;
+                    const res = sectionRegex.exec(section.section_title);
+                    if (res) {
+                      sectionIndex[section.id] = {
+                        term: res[1],
+                        course: section.course_title
+                      };
+                    }
                   });
 
-                  return Promise.all(submissionPromises)
-                    .then(() => reply({
-                      totals: {
-                        gradedCount: gradedAssignments.length,
-                        submittedNotGradedCount: completedAssignments.length,
-                        incompleteAssignmentCount: incompleteAssignments.length
-                      },
-                      ungradedAssignments: { completedAssignments, incompleteAssignments },
-                      gradedAssignments
-                    }))
-                    .catch(reply);
+                  const simpleGrades = _(gradedAssignments).map(assignment => ({
+                    course: assignment.course_title,
+                    sectionId: assignment.section_id,
+                    title: assignment.title,
+                    grade: gradeResults.grades[assignment.id][0].grade / gradeResults.grades[assignment.id][0].max_points,
+                    gradeFraction: `${gradeResults.grades[assignment.id][0].grade}/${gradeResults.grades[assignment.id][0].max_points}`
+                  }))
+                    .sort('grade')
+                    .value();
+
+                  const graded = {};
+                  simpleGrades.forEach((simpleGrade) => {
+                    const term = sectionIndex[simpleGrade.sectionId].term;
+                    const grade = calcGrade(simpleGrade.grade);
+                    graded[term] = graded[term] || {};
+                    graded[term][grade] = graded[term][grade] || {};
+                    graded[term][grade][simpleGrade.course] = graded[term][grade][simpleGrade.course] || [];
+                    graded[term][grade][simpleGrade.course].push(simpleGrade);
+                    delete simpleGrade.course;
+                    delete simpleGrade.sectionId;
+                  });
+
+                  // return Promise.all(submissionPromises)
+                  //   .then(() => {
+                  //     const incomplete = _(incompleteAssignments)
+                  //       .filter(assignment => assignment.max_points > 0)
+                  //       .map(assignment => ({
+                  //         title: assignment.title,
+                  //         course: assignment.course_title,
+                  //         points: assignment.max_points,
+                  //         due_date: assignment.due_date
+                  //       }))
+                  //       .groupBy('course')
+                  //       .value();
+                  //
+                  //     const submitted = _(completedAssignments)
+                  //       .filter(assignment => assignment.max_points > 0)
+                  //       .map(assignment => ({
+                  //         title: assignment.title,
+                  //         course: assignment.course_title,
+                  //         points: assignment.max_points,
+                  //         due_date: assignment.due_date
+                  //       }))
+                  //       .groupBy('course')
+                  //       .value();
+
+                  return reply({
+                    totals: {
+                      gradedCount: gradedAssignments.length
+                      // submittedNotGradedCount: completedAssignments.length,
+                      // incompleteAssignmentCount: incompleteAssignments.length
+                    },
+                    sections: sectionIndex,
+                    // submitted,
+                    // incomplete,
+                    graded
+                  });
+                  // })
+                  // .catch(reply);
                 });
             })
             .catch((err) => {
