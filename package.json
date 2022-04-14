@@ -20,7 +20,7 @@
   },
   "repository": "github:mostekcm/schoology-tasks-api",
   "dependencies": {
-    "async": "^2.1.5",
+    "async": "^3.2.2",
     "bluebird": "^3.5.0",
     "boom": "^4.2.0",
     "cors": "^2.8.1",
